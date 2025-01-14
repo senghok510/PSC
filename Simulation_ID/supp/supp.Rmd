@@ -1,0 +1,761 @@
+---
+title: "Supplemental Materials for: A robust and readily implementable method for the meta-analysis of response ratios with and without missing standard deviations"
+author: Shinichi Nakagawa, Daniel W. A. Noble, Malgorzata Lagisz, Rebecca Spake, Wolfgang Viechtbauer and Alistair M. Senior 
+date: "`r Sys.Date()`"
+bibliography: ./bib.bib
+csl: ./ecology-letters.csl
+output: 
+  bookdown::html_document2:
+    code_folding: show
+    number_sections: no
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = FALSE)
+options(digits=2)
+```
+
+```{r klippy, echo=FALSE, include=TRUE, message=FALSE, warning=FALSE}
+#install.packages("devtools")
+remotes::install_github("rlesur/klippy")
+klippy::klippy(tooltip_message = 'Click to Copy Code', tooltip_success = 'Done', position = 'right', color = "red")
+```
+
+# **Citation**
+
+Please cite the following paper for the methods proposed for dealing with missing standard deviations:
+
+Shinichi Nakagawa, Daniel W. A. Noble, Malgorzata Lagisz, Rebecca Spake, Wolfgang Viechtbauer and Alistair M. Senior. 2022. A robust and readily implementable method for the meta-analysis of response ratios with and without missing standard deviations.
+
+# **General Introduction**
+
+In this supplement we show readers how they can implement some of the missing data approaches covered within our paper to deal with missing standard deviations when using log response ratios (*lnRR*). We provide code snippets that can be copied and added to the users console. We make use of our worked example from the main manuscript to demonstrate how to apply the methods. We then turn to a second worked example where the authors applied similar methods to deal with missing standard deviations.
+
+Importantly, this tutorial is hosted online at: https://alistairmcnairsenior.github.io/Miss_SD_Sim/. All files can be downloaded from [OSF](https://osf.io/h9x6w/). This includes data from @bird2019 and their phylogenetic tree, and data from @mcdonald2019. Here we provide only the relevant code to demonstrate the methods, but more detailed code for all examples can all be found on our [GitHub](https://github.com/AlistairMcNairSenior/Miss_SD_Sim) repository. 
+
+# **Appendix S1**: Extending the proposed methods to more complex situations
+
+### Extending the proposed methods to more complex situations
+
+In many ecological meta-analyses, meta-analytic models are often made more complex by the need to account for phylogenetic relatedness when a meta-analytic dataset contains multiple species. Moreover, almost all meta-analytic studies test a number of moderators (predictors) to explain heterogeneity among effect sizes (i.e., meta-regression). Furthermore, effect sizes from the same studies can be correlated at the level of sampling error [e.g., the same individuals are used to calculate 2 effect sizes, see @Noble2017]. We can write a meta-analytic model which can accommodate these three points above, as follows [@nakagawaSantos2012; @Cinar2022]:
+
+$$
+\ln{\text{RR}}_{ijh} = \beta_{0} + \sum^{N_{mod}}_{k = 1}\beta_kx_k + a_h + q_h + s_j + u_{ij} + m_{ij},
+$$
+
+$$
+a_{h} \sim \mathcal{N}(0, \sigma_a^2\textbf{A}), q_{h} \sim \mathcal{N}(0, \sigma_q^2), m_{ij} \sim \mathcal{N}(0, \mathbf{V}^*) 
+$$
+
+where $x_{k}$ is the kth moderator's value and $β_{k}$ is the regression coefficient of the kth moderator (h = 1, 2, ..., $N_{mod}$, the number of moderators), $a_{h}$ is the phylogenetic effect for the hth species, considered multivariate normally distributed with a covariance of $\sigma_{a}^2$ "A" [A is a correlation matrix derived from a phylogeny; see @Hadfield2010]; $q_{h}$ is the non-phylogenetic effect for the hth species, distributed with the variance of $\sigma_{q}^2$ ($h$ = 1, 2, ... $N_{species}$, the number of species, which is different from Nstudy \> Neffect-size); and the other notations are the same as above. $\bf{V}$\* is a variance-covariance matrix of the sampling variance, which may result, say, when effect sizes share a common-control [e.g., @Noble2017]; for example, when we have 5 cases from 3 studies, $\bf{V}$\* can be written as:
+
+$$
+\mathbf{V}^* = 
+     \begin{bmatrix}
+    v_{11} & \rho \sqrt{v_{11} v_{12}} & 0 & 0 & 0 \\
+    \rho \sqrt{v_{12} v_{11}} & v_{12}  & 0 & 0 & 0 \\
+    0 & 0 &  v_{21} & \rho \sqrt{v_{21} v_{22}} & 0 \\
+    0 & 0 & \rho \sqrt{v_{22} v_{21}}  & v_{22} & 0 \\
+    0 & 0 &  0 & 0  & v_{31}
+\end{bmatrix}
+$$
+
+where $v_{1}$ and $v_{2}$ are the sampling variances for the 1st and 2nd effect sizes from the same study, and $\rho$ $\sqrt{v_{1}v_{2}}$ and $\rho$$\sqrt{v_{2}v_{1}}$ are the co-variances between the two effect sizes (the 1st study), $v_{3}$, $v_{4}$ and come from the same study (the 2nd study; if we want to make this equation similar to Equation 12, then $v_{3}$ = $\phi$ $\tilde{v}_{3}$ and $v_{4}$ = $\phi$ $\tilde{v}_{4}$, and $v_{5}$ is the sampling variance of the 5th effect size from another study. The correlation $\rho$ needs to be provided, but can often be assumed to be 0.5 or 0.8 [@Noble2017; for a formula for the direct estimation of the sampling covariance for lnRR, see @Lajeunesse2011].
+
+Constructing $\bf{V}$\* may be as challenging as just doing MI for many ecologists, because the actual value of $\rho$ is often unknown [@Noble2017]. Fortunately, @Hedges2010 derived the robust variance estimator (RVE), which bypasses these challenges by estimating $\rho$ from the data. By using RVE we need only construct $\bf{V}$\*, rather than $\\$\* [see also @Tipton2013]. We show an implementation of this procedure in Appendix S3, using the `clubSandwich` package [@Pustejovsky2021b], which implements the RVE method with a multilevel meta-analysis in `metafor` [cf. @Pustejovsky2021].
+
+# **Appendix S2**: Simulation details
+
+We conducted a simulation study to compare the performance of the missing-cases, all-cases, multiplicative and hybrid methods on meta-analytic datasets with varying proportions of missing SDs. We also computed a meta-analytic model with full data, for reference (see Table 1 for the summary of which equations were used for each method; see also Fig. 1). To represent a typical dataset in ecology (and also evolutionary biology), we simulated a hierarchical structure where each study contained ≥1, correlated effect size; i.e., we simulated an intra-class correlation for each study; $ICC_{s}$ = $\sigma_{s}^2 / \sigma_{s}^2 + \sigma_{u}^2$ using the terms in Equation 13. For each simulated dataset we analyzed the full dataset using the conventional approach, before deleting SDs for 5%, 15%, 25% 35%, 45%, or 55% of the studies. We treated 55% as the upper limit of missingness after consulting earlier surveys [e.g., @Senior2016; @Kamback2020]; the latter found ecological meta-analyses had missing SDs for up to 30% of cases). Missingness was imposed at the study-level, rather than the effect size-level. We then analyzed each dataset with the four proposed methods for handling missing SDs.
+
+Datasets were analyzed using models that included a study-level and an effect-size-level random effect, specified using the ‘rma.mv’ function in metafor [@Viechtbauer2010] with the default REML (restricted maximum likelihood) estimator, which has been shown to provide robust estimations of random effects or variance components [e.g., @Langan2019]. For each model, we calculated: i) bias (as the difference between the estimated and the true, parametrized value) for the meta-estimate of the overall mean effect size, ii) bias for the total amount of heterogeneity ($\tau^2  = \sigma_{s}^2 + \sigma_{u}^2$in Equation 13, and $\tau^2  = \sigma_{s}^2$ in Equation 9; difference between estimated and parametrized value on the long scale) and the estimated $ICC_{s}$ (difference between estimated and parametrized value), and iii) coverage of 95% confidence intervals (CIs) for the overall mean. CIs were calculated as the estimated effect $\pm$ t-value x SE, where for t-values the degrees of freedom were the number of effect sizes minus 1, when $ICC_{s}$ = 0, and the number of studies minus 1 when $ICC_{s}$ > 0 [cf. @Nakagawa2021].
+
+Each simulated dataset contained K studies. Values of K = 12, 30, and 100 were tested; these values were taken as representative of small, medium and large meta-analyses based on the survey in @Senior2016 [see also @Lajeunesse2015]. Because studies often vary in the number of effect sizes they contain, the number of effect sizes per study, *L*, was assigned as a random variable. We simulated *L* using a double Poisson distribution, which is a discrete probability distribution that can be under/over dispersed relative to a Poisson distribution via a multiplicative dispersion parameter. Using the ‘rDPO’ function in the *gamlss.dist* package, *L* was drawn from a double Poisson distribution with a mean of 2 and a multiplicative dispersion parameter of 2.88, before adding 1 (to prevent 0 values). This resulted in *L* having a minimum of 1, a mean of 3, and SD of 2.4 (i.e., dispersion of 1.92). We termed this set of parameters Set I. We also simulated a second set where *L* is fixed to 1 (i.e., each study had only one effect size; *L* = 1, dispersion = 0), which we called Set II. Set II is equivalent to a meta-analysis with just one effect size per study (i.e., no dependency), and which we assessed using a standard random-effects meta-analysis (i.e., Equation 9) combined with the missing-cases, all-cases, multiplicative and hybrid methods to handle missing SDs.
+
+To simulate effect sizes that were correlated in a hierarchical manner, we assumed an overall lnRR ($\theta$) of 0.3 ($e^0.3$ = 1.35, or a 35% increase in the mean) with either negligible ($\tau^2$ = 9x10^-6 or $\tau$ / $\theta$ = 0.01) or high total heterogeneity ($\tau^2$= 0.09 or $\tau$ / $\theta$ = 1), referred to as the low and high heterogeneity settings, respectively. This heterogeneity was partitioned between among- and within-study level effects assuming a given intra-class correlation ($ICC_{s}$; values of 0 and 0.5 were tested) such that the *j*th effect size (*j* = 1 … $L_{i}$) in the *i*th (*i* = 1 … K) study, $\theta_{i,j}$ (cf. Equation 13) was drawn from a hierarchical pair of random normal distributions (‘rnorm’ function in *base* R) as:
+
+$$
+\theta_{i} \sim N\left ( \theta, \sqrt{\tau^2 * ICC_{s}} \right), \\
+\theta_{i,j} \sim N\left ( \theta_{i}, \sqrt{\tau^2 * \left(1 - ICC_{s} \right)} \right)
+$$
+To simulate variation in the precision of the studies in the dataset we treated the sample size of the underlying studies as a random variable, *N*. We assumed *N* varied at the level of the study such that each group/effect size within the same study had the same sample size. In our experience it is common for experimental designs to vary among, more than within, studies. We drew the simulated sample size for study *k* by drawing a random value from a double Poisson distribution before adding a value of 3. The double Poisson distribution was parametrized with a mean of either 2 or 27 coupled with dispersion parameters of either 3.65 or 1.66. After adding the constant of 3, this resulted in two different distributions of N both with a minimum of 3, and (over) dispersion of 1.5, but with a mean ($\mu_{N}$) of either 5 or 30. The smaller mean value of 5 is more typical in terrestrial/ecosystem ecology (or some pre-clinical biomedical studies), while the larger mean value is more like evolutionary/behavioural ecology studies. Note that under the large-mean condition, the sample size of an individual study can be ~250 per group, which matches very large studies in ecology and evolution biology [@Senior2016].
+
+The underlying data in control and treatment groups in each effect size were drawn from normal distributions ‘shifted’ to ensure both groups had a positive mean as is required for analysis using lnRR. From these individual simulated values, we calculated the mean and SD in each group for the calculation of lnRR and meta-analysis. The observations for the control group in effect size *j* in study *i* were drawn from the random normal distribution, N(100, $\sigma_{i}$), and the paired treatment group from the random normal distribution, N(100 × $e^{\theta_{i,j}}$, $\sigma_{i}$), where $\sigma_{i}$ is the SD in the underlying individual observations in study *i*.
+
+Because we assessed the performance of methods to deal with missing SD values, we chose to treat the within-group (among-observation) SD as a random variable, *S*. The SD for study i was drawn from a random Gamma distribution (the ‘rgamma’ function in base R) with shape $\mu_{s}^2$ / $\sigma_{s}^2$ and scale $\sigma_{s}^2$ / $\mu_{s}$, where $\mu_{s}$ is the mean of S (i.e., mean SD of studies; here 15), and S is the SD in S. This latter parameter thus specifies how heterogeneous the within-study (among-observation) variances are; we tested values of 10-10 (~ 0), 3.75, and 7.5 (i.e., entirely homogeneous variances, or the CV for the SD among studies is 0.25 or 0.5). A summary of the key parameters and their values is given in Table S1. Each combination of parameter values was simulated 10,000 times for both Set I and Set II. For Set I presented in the main text, we used the multilevel meta-analytic model (Equation 13; with the missing and all-cases methods) and its variants (the multiplicative and hybrid methods). For Set II, we used the random-effects meta-analytic model (Equation 9) and its variants. The results from Set II are presented in the supplementary materials, and match those from Set I. For all four methods, we needed to calculate the average CV as in Equations 6 and 7. In Set I, this calculation was done by averaging CV within studies and then taking the weighted-average CV across studies (using mean n per study as the weight), disregarding rows containing missing SDs. For Set II, we calculated the weighted CV among studies (using n per study as the weight) as we only had one CV value per study (see also Fig. S1-S3).
+
+
+# **`cv_avg` Function**: Calculating between study $CV$
+
+To facilitate application of the methods we have written a general function for calculating the weighted $CV$ across studies. That function is in the `func.R` script, but we provide some detail here.
+
+```{r echo = TRUE, results='hide', tidy=FALSE, tidy.opts=list(width.cutoff=80), class.source='klippy'}
+#' @title cv_avg
+#' @description Calculates the weighted average CV^2 within a study and the weighted average CV^2 across a study
+#' @param x Mean of an experimental group
+#' @param sd Standard deviation of an experimental group
+#' @param n The sample size of an experimental group
+#' @param group Study, grouping or cluster variable one wishes to calculate the within and between weighted CV^2. In meta-analysis this will most likely be 'study'.
+#' @param data The dataframe containing the mean, sd, n and grouping variables
+#' @param label A character string specifying the label one wishes to attach to columns to identify the treatment. Otherwise, if not specified it will default to the variable name for x
+#' @param sub_b A logical indicating whether the between study CV^2 (b_CV2) should be appended to the data only ('TRUE') or whether both within study CV^2 (w_CV2), mean sample size (n_mean) and between study CV^2 (b_CV2) should all be appended to the data only ('FALSE')
+#' @param cv2 A logical indicating whether one should take the weighted average of CV2 or the weighted average of CV followed by squaring this average. Default to FALSE.
+#' @example \dontrun{
+#' # test data for cv_avg function
+#' library(tidyverse)
+#' set.seed(76)
+#' x1 = rnorm(16, 6, 1)
+#' x2 = rnorm(16, 6, 1)
+#' test_dat <- data.frame(stdy = rep(c(1,2,3,4), each = 4),x1 = x1,sd1 = exp(log(x1)*1.5 + rnorm(16, 0,
+#' sd = 0.10)),n1 = rpois(16, 15),x2 = x2,sd2 = exp(log(x2)*1.5 + rnorm(16, 0, sd = 0.10)),n2 = rpois(16, 15))
+#' rm(list = c("x1", "x2"))
+#' # # Now generate some missing data
+#' t2 <- gen.miss(test_dat, "sd1", "sd2", 6)
+#' t2_cv2 <- cv_avg(x = x1, sd = sd1, n = n1, stdy, data =  t2, sub_b = FALSE, cv2 = TRUE)
+#' t2_cv2 <- cv_avg(x2, sd2, n2, stdy, label = "2", data =  t2_cv, sub_b = FALSE)
+#' # Check calculations are correct. All match what is expected
+#' test <- t2_cv %>%  filter(stdy == "1")
+#' # Within
+#' mean(test$n1) # Matches 14.75
+#' mean(test$n2) # Matches 14
+#' # CV^2
+#' weighted.mean((test$sd1 / test$x1)^2, test$n1, na.rm = T)
+#' weighted.mean((test$sd2 / test$x2)^2, test$n2, na.rm = T)
+#' # mean(CV)^2
+#' t2_cv <- cv_avg(x = x1, sd = sd1, n = n1, stdy, data =  t2, sub_b = FALSE, cv2 = FALSE)
+#' weighted.mean((test$sd1 / test$x1), test$n1, na.rm = T)^2
+#' # Between
+#' wCV1 = unique(t2_cv2$w_CV2_x1)
+#' w_nt1 = c(59,58,58,50)
+#' weighted.mean(wCV1, w_nt1)
+#' wCV2 = unique(t2_cv2$w_CV2_2)
+#' w_nt2 = c(56, 56, 72, 63)
+#' weighted.mean(wCV2, w_nt2)
+#' }
+
+cv_avg <- function(x, sd, n, group, data, label = NULL, sub_b = TRUE, cv2=FALSE){
+
+  # Check if the name is specified or not. If not, then assign it the name of the mean, x, variable input in the function. https://stackoverflow.com/questions/60644445/converting-tidyeval-arguments-to-string
+  if(is.null(label)){
+    label <- purrr::map_chr(enquos(x), rlang::as_label)
+  }
+
+  # Calculate between study CV. Take weighted mean CV within study, and then take a weighted mean across studies of the within study CV. Weighted based on sample size and pooled sample size.
+  b_grp_cv_data <- data                                             %>%
+    dplyr::group_by({{group}})                            %>%
+    dplyr::mutate(   w_CV2 = weighted_CV({{sd}}, {{x}}, {{n}}, cv2=cv2),
+                     n_mean = mean({{n}}, na.rm = TRUE))   %>%
+    dplyr::ungroup(.)                                     %>%
+    dplyr::mutate(b_CV2 = weighted.mean(w_CV2, n_mean, na.rm = TRUE), .keep = "used")
+
+  # Make sure that label of the calculated columns is distinct from any other columns
+  names(b_grp_cv_data) <- paste0(names(b_grp_cv_data), "_", label)
+
+  # Append these calculated columns back to the original data and return the full dataset.
+  if(sub_b){
+    b_grp_cv_data <- b_grp_cv_data %>% dplyr::select(grep("b_", names(b_grp_cv_data)))
+    dat_new <- cbind(data, b_grp_cv_data)
+  } else {
+    dat_new <- cbind(data, b_grp_cv_data)
+  }
+
+  return(data.frame(dat_new))
+}
+
+```
+
+The function will take the mean (`x`), standard deviation (`sd`) and sample size (`n`) along with the desired dataframe and calculate the between study $CV$ (note this is calculated by taking weighted average of CV and then squaring that average) that is needed for many of the methods implemented. The `group` argument is needed to identify the "study" / cluster variable which is important so that the function first takes the weighted mean $CV$ within the study before calculating the $CV$ across studies. The new $CV$ is then added directly to the dataframe. You can label these new columns using the `label` argument, otherwise, it will append the name of the column for the treatment group with `b_CV2`. We'll show how this function is used as we overview the methods in detail below.
+
+# **Appendix S3**: Worked Example 1 - Dealing with missing SD data to explore the fitness impacts of competition between herbivorous insects
+
+### Introduction
+
+@bird2019 conducted a meta-analysis exploring the impacts of competition on herbivorous insect fitness when occupying the same host plant with another species or in isolation. Building on work by @Kaplan2007, they collected data on a series of fitness measurements [e.g., abundance, body size, development time, fecundity; see Table 1 in @bird2019] and explored the overall impacts of competition on the various fitness measures independently and in composite analyses. @bird2019 also tested the importance of a series of moderators they predicted would impact the magnitude of competition between species including population density, phylogenetic distance, diet breadth and spatial and temporal separation. A phylogeny was constructed using DNA sequence data and this gene tree was used to control for phylogenetic non-independence within analyses.
+
+For demonstration purposes, we focus on a subset of fitness data, abundance, and use a simple multilevel meta-analytic model to estimate the overall impact of competition on focal insect fitness (i.e., intercept or overall meta-analytic mean) while controlling for phylogeny, research group, and research year [as per the analysis by @bird2019]. Our use of log response ratio (lnRR) meant that we could only use a subset of abundance data from @bird2019 because of lnRR requiring ratio scale data. We also excluded effects that failed Geary's test. We then introduced missing data at the paper level so that \~20% of papers had effect sizes with missing SD in the control and experimental treatment; a scenario that is typical of many meta-analyses.
+
+### Setting up
+
+First, download all files from  OSF: https://osf.io/h9x6w/. Then, load the libraries and source functions:
+
+```{r echo = TRUE, eval = TRUE, class.source='klippy', results='hide'}
+#install.packages("pacman")
+pacman::p_load(tidyverse, metafor, here, ape, phytools, patchwork)
+
+# Useful functions for calculating CV^2 within and between studies. This file can be downloaded from OSF: https://osf.io/h9x6w/
+source("./func.R")
+```
+
+Then, download the data file and phylogenetic tree file that we will use to demonstrate the examples
+
+```{r echo = TRUE, eval = TRUE, results='hide', warning=FALSE,class.source='klippy'}
+# Load the data file and tree file
+
+# Download the data file from OSF and do some cleaning. This file can be downloaded from OSF: https://osf.io/h9x6w/
+data1 <- read.csv("./example1.csv")
+
+# Fix column classes
+data1$Experimental_standard_deviation <- as.numeric(data1$Experimental_standard_deviation)
+     data1$Control_standard_deviation <- as.numeric(data1$Control_standard_deviation)
+
+# Needed for metafor to make model equivalent to MCMCglmm
+data1$obs <- 1:nrow(data1) 
+
+# Clean up the data to drop unnecessary columns
+data1 <- data1[,-which(colnames(data1)%in%c("vi", "yi_g", "Focal_insect_resolved_name", "Competing_insect_resolved_name", "Focal_insect_diet_breadth", "Competing_insect_diet_breadth", "Phylogenetic_distance_between_focal_insect_and_competing_insect", "Spatial_separation", "temporal_separation"))]
+
+ # Filter abundance data
+    data1 <- data1 %>% filter(Fitness_component == "Abundance")
+
+  # Calculate CV on missing dataset. Note missing data will be ignored
+    data1 <- data1 %>%
+          mutate(cv_Control = na_if(Control_standard_deviation / Control_mean, Inf),
+            cv_Experimental = na_if(Experimental_standard_deviation / Experimental_mean, Inf))
+
+# Download the phylogeny from OSF: https://osf.io/h9x6w/
+ tree <- read.tree("./phylo_tree.tre")
+
+```
+
+### Geary's Test
+
+As indicated in our manuscript, how well missing SD methods perform (and indeed whether lnRR is suitable at all) depends on whether lnRR is normally distributed. Abundance data is commonly used in ecology, but may often violate the normality assumption because such data are counts and are often over-dispersed. We can use a modified Geary's Test [@Lajeunesse2015] to ascertain effects that may be problematic. We'll do that first.
+
+```{r geary, echo=TRUE, include=TRUE, message=FALSE, warning=FALSE, class.source='klippy'}
+# Function to calculate Geary's "number"
+  geary <- function(mean, sd, n){
+    (1 / (sd / mean)) * ((4*n)^(3/2) / (1 + 4*n))
+  }
+
+# Geary's test; assumption of normality assumed to be approximately correct when values are >= 3.
+data1 <- data1 %>% 
+         mutate(geary_control = geary(Control_mean, Control_standard_deviation, Control_sample_size),
+                    geary_trt = geary(Experimental_mean, Experimental_standard_deviation, Experimental_sample_size),
+                   geary_test = ifelse(geary_control >= 3 & geary_trt >= 3, "pass", "fail"))
+# How many fail?
+    geary_res <- data1 %>% group_by(geary_test) %>% summarise(n = n()) %>%  data.frame()
+```
+
+Overall, it looks like we have `r geary_res[1,"n"]` effects that fail the test, representing `r geary_res[1,"n"] / sum(geary_res[-3,"n"])*100`% of the data. While @Lajeunesse2015 recommend doing a sensitivity analysis with and without the effect sizes that fail the test we will just exclude these data for simplicity for all subsequent analyses.
+
+```{r exclude_geary, echo=TRUE, include=TRUE, message=FALSE, warning=FALSE, class.source='klippy'}
+# We'll create two data sets to run a sensitivity analysis. The first data set will include all the data. The second will drop out data that fail the test
+
+# Exclude data failing test
+data2 <- data1 %>% 
+         filter(geary_test == "pass")
+         
+```
+
+### Prune Phylogeny
+
+Now that we have excluded some data, we can prune the phylogenetic tree.
+
+```{r tree_prune, echo=TRUE, include=TRUE, message=FALSE, warning=FALSE, results='hide', class.source='klippy'}
+# Prune tree
+    tree<-drop.tip(tree, tree$tip.label[which(tree$tip.label %in% data1$Focal_insect==FALSE)])
+    check.species<-function(x) {any(x==tree$tip.label)}
+
+# Drop species in data not in tree
+    data1 <- data1[sapply(data1[,"Focal_insect"],check.species),]
+
+# Check tree and data species match
+    tree_checks(data = data1, tree = tree, species_name_col = "Focal_insect", type = "checks")
+
+# Create a phylogenetic correlation matrix
+    phylo <- vcv(tree, corr = TRUE)
+    
+### We'll now do the same with the reduced data set where we have excluded effects failing Geary's test. Note that this only drops out 1 species.
+
+# Prune tree
+    tree2 <- drop.tip(tree, tree$tip.label[which(tree$tip.label %in% data2$Focal_insect==FALSE)])
+    check.species <- function(x) {any(x==tree$tip.label)}
+
+# Drop species in data not in tree
+    data2 <- data2[sapply(data2[,"Focal_insect"],check.species),]
+
+# Check tree and data species match
+    tree_checks(data = data2, tree = tree2, species_name_col = "Focal_insect", type = "checks")
+
+# Create a phylogenetic correlation matrix
+    phylo2 <- vcv(tree2, corr = TRUE)
+```
+
+### Generate Missing
+
+Now that we have the data ready we'll introduce some missing data to simulate a situation where we were not able to collect SD from a bunch of studies in the dataset. Normally, we would have to remove these because we would not be able to calculate sampling variance.
+
+```{r missingDat, echo=TRUE, include=TRUE, message=FALSE, warning=FALSE, class.source='klippy'}
+ # Create missingness at the study level
+    set.seed(675)
+    stdies <- sample(unique(data1$Author), size = 0.2*(length(unique(data1$Author))))
+    data1[which(data1$Author %in% stdies),
+           c("Experimental_standard_deviation", "Control_standard_deviation")] <- NA
+
+    # First calculate CV on missing data set. Note missing data will be ignored
+    data1 <- data1 %>%
+      mutate(cv_Control = na_if(Control_standard_deviation / Control_mean, Inf),
+             cv_Experimental = na_if(Experimental_standard_deviation / Experimental_mean, Inf))
+    
+ # Repeat this with the second data set where Geary's failures are removed.
+    set.seed(675)
+    stdies <- sample(unique(data2$Author), size = 0.2*(length(unique(data2$Author))))
+    data2[which(data2$Author %in% stdies),
+           c("Experimental_standard_deviation", "Control_standard_deviation")] <- NA
+
+    # First calculate CV on missing data set. Note missing data will be ignored
+    data2 <- data2 %>%
+      mutate(cv_Control = na_if(Control_standard_deviation / Control_mean, Inf),
+             cv_Experimental = na_if(Experimental_standard_deviation / Experimental_mean, Inf))
+```
+
+We can view the missing data pattern to ensure that we are in fact missing SD in control and experimental groups (Figure \@ref(fig:fig1)).
+
+```{r fig1, fig.cap = "Missing data in the Bird et al. (2019) dataset. A is the full dataset and B is the dataset that excludes effects that fail Geary's test.", echo=FALSE, eval = TRUE, include=TRUE, message=FALSE, warning=FALSE}
+na.plot <- data1 %>%
+  mutate(id = row_number()) %>%
+  gather(-id, key = "key", value = "val") %>%
+  mutate(isna = is.na(val)) %>%
+  ggplot(aes(key, id, fill = isna)) +
+    geom_raster(alpha=0.8) +
+    scale_fill_manual(name = "",
+        values = c('steelblue', 'tomato3'),
+        labels = c("Present", "Missing")) +
+    labs(x = "Variable",
+           y = "Row Number") +
+    theme(legend.position = "none") + 
+    coord_flip()
+
+
+na.plot2 <- data2 %>%
+  mutate(id = row_number()) %>%
+  gather(-id, key = "key", value = "val") %>%
+  mutate(isna = is.na(val)) %>%
+  ggplot(aes(key, id, fill = isna)) +
+    geom_raster(alpha=0.8) +
+    scale_fill_manual(name = "",
+        values = c('steelblue', 'tomato3'),
+        labels = c("Present", "Missing")) +
+    labs(x = "Variable",
+           y = "Row Number") +
+    theme(axis.text = element_blank(),
+          axis.title.y = element_blank() ) +
+    coord_flip()
+
+(na.plot | na.plot2) + plot_annotation(tag_levels = 'A')
+```
+
+### Missing-cases Method
+
+In our manuscript we provide the full data and complete case analysis (excluding rows with missing data). As such, here we jump straight into showing readers how to implement the different solutions to the missing standard deviation problem that is typical when conducting meta-analysis.
+
+To implement the Missing-cases Method described in the manuscript, we need to first calculate the between study $CV$. We will do this with the `cvg_avg` function we describe above. Here, we need to do this for the control and experimental groups as follows, such that variable `b_CV_1` and `b_CV_2` are the averages for the control and experimental groups, respectively:
+
+```{r cvavg, echo=TRUE, include=TRUE, message=FALSE, warning=FALSE, class.source='klippy'}
+# Calculate the average between study CV, which will replace missing values.
+    data1 <- cv_avg(x = Control_mean, sd = Control_standard_deviation,
+                            n = Control_sample_size, group = Author, label = "1",
+                             data = data1)
+    data1 <- cv_avg(x = Experimental_mean, sd = Experimental_standard_deviation,
+                            n = Experimental_sample_size, group = Author,
+                            label = "2", data = data1)
+    
+# Calculate the average between study CV, which will replace missing values, for the reduced dataset that excludes effects failing Geary's test.
+    data2 <- cv_avg(x = Control_mean, sd = Control_standard_deviation,
+                            n = Control_sample_size, group = Author, label = "1",
+                             data = data2)
+    data2 <- cv_avg(x = Experimental_mean, sd = Experimental_standard_deviation,
+                            n = Experimental_sample_size, group = Author,
+                            label = "2", data = data2)
+```
+
+To implement Missing-cases Method, we need to calculate log response ratios and their associated sampling variances differently depending on whether we have an observation with a missing standard deviation (SD) or not. According to Table 1 (in the main MS), we can use equation 4 or 6 for the point estimate calculation and equation 5 for the sampling variance when we have a known SD and equation 7 when we have an unknown SD. We can do that as follows:
+
+```{r lnRR_1A, echo=TRUE, include=TRUE, message=FALSE, warning=FALSE, class.source='klippy'}
+    # Use weighted mean CV in replacement for where CV's are missing. Otherwise, calculate CV^2 of data that is known.
+    data1 <- data1 %>%
+              mutate(cv2_cont_new = if_else(is.na(cv_Control),      b_CV2_1, cv_Control^2),
+                     cv2_expt_new = if_else(is.na(cv_Experimental), b_CV2_2, cv_Experimental^2))
+
+    # Now calculate new yi and vi, called lnrr_laj & v_lnrr_laj, respectively. This uses either the between individual CV^2 when missing or normal CV^2 when not missing.
+    data1 <- data1 %>%
+              mutate(lnrr_laj = lnrr_laj(m1 = Control_mean, m2 = Experimental_mean,
+                                         cv1_2 = cv2_cont_new, cv2_2 = cv2_expt_new,
+                                         n1= Control_sample_size, n2 = Experimental_sample_size),
+                   v_lnrr_laj = v_lnrr_laj(cv1_2 = cv2_cont_new, n1= Control_sample_size,
+                                           cv2_2 = cv2_expt_new, n2 = Experimental_sample_size))
+    
+    # We need to exclude some missing data in the raw data set and data that is not defined on the ratio scale.
+    data1 <- data1 %>% filter(!is.infinite(lnrr_laj) & !is.na(lnrr_laj))
+    
+## Repeat with reduced data set (data 2)
+    
+       # Use weighted mean CV in replacement for where CV's are missing. Otherwise, calculate CV^2 of data that is known.
+    data2 <- data2 %>%
+              mutate(cv2_cont_new = if_else(is.na(cv_Control),      b_CV2_1, cv_Control^2),
+                     cv2_expt_new = if_else(is.na(cv_Experimental), b_CV2_2, cv_Experimental^2))
+
+    # Now calculate new yi and vi, called lnrr_laj & v_lnrr_laj, respectively. This uses either the between individual CV^2 when missing or normal CV^2 when not missing.
+    data2 <- data2 %>%
+              mutate(lnrr_laj = lnrr_laj(m1 = Control_mean, m2 = Experimental_mean,
+                                         cv1_2 = cv2_cont_new, cv2_2 = cv2_expt_new,
+                                         n1= Control_sample_size, n2 = Experimental_sample_size),
+                   v_lnrr_laj = v_lnrr_laj(cv1_2 = cv2_cont_new, n1= Control_sample_size,
+                                           cv2_2 = cv2_expt_new, n2 = Experimental_sample_size))
+```
+
+Now we are ready to fit our multilevel meta-analytic model as per @bird2019.
+
+```{r bird_1A, echo=TRUE, include=TRUE, message=FALSE, warning=FALSE, class.source='klippy'}
+
+########## Missing-cases (MC) ##########
+    # Fit model with new sampling variance
+    method_MC_bird <- rma.mv(lnrr_laj ~ 1, V = v_lnrr_laj,
+                               random=list(~1|Group, ~1|Year, ~1|Focal_insect, ~1|obs),
+                               R = list(Focal_insect = phylo), data = data1)
+
+    method_MC_bird_res <- get_est(method_MC_bird)
+    
+    # Fit model with new sampling variance using reduced data set
+    method_MC_bird_2 <- rma.mv(lnrr_laj ~ 1, V = v_lnrr_laj,
+                               random=list(~1|Group, ~1|Year, ~1|Focal_insect, ~1|obs),
+                               R = list(Focal_insect = phylo2), data = data2)
+
+    method_MC_bird_res_2 <- get_est(method_MC_bird_2)
+```
+
+### All-cases Method
+
+While the Missing-cases Method could be used our simulations show that it is better to apply the All-cases Method. The only real difference is that we apply equation 7 to calculate sampling variance regardless of whether we are missing the standard deviation or not for a row. In other words, we simply using the between study $CV^2$ for all CV's in the control and experimental group.
+
+```{r lnRR_1B, echo=TRUE, include=TRUE, message=FALSE, warning=FALSE, class.source='klippy'}
+
+    # Now calculate new v_lnrr_laj_1B using between study CV^2 for all observations.
+    data1 <- data1 %>%
+              mutate(v_lnrr_laj_1B = v_lnrr_laj(cv1 = b_CV2_1, n1= Control_sample_size,
+                                                cv2 = b_CV2_2, n2 = Experimental_sample_size))
+
+### Do the same with the reduced data set
+
+  # Now calculate new v_lnrr_laj_1B using between study CV^2 for all observations.
+    data2 <- data2 %>%
+              mutate(v_lnrr_laj_1B = v_lnrr_laj(cv1 = b_CV2_1, n1= Control_sample_size,
+                                                cv2 = b_CV2_2, n2 = Experimental_sample_size))
+```
+
+Now we can fit the same model as described above using this new sampling variance:
+
+```{r bird_1B, echo=TRUE, include=TRUE, message=FALSE, warning=FALSE, class.source='klippy'}
+
+     ########## All-cases Method (AC) ##########
+
+    # Fit model with new sampling variance and point estimate
+    method_AC_bird <- rma.mv(lnrr_laj ~ 1, V = v_lnrr_laj_1B,
+                           random=list(~1|Group, ~1|Year, ~1|Focal_insect, ~1|obs),
+                           R = list(Focal_insect = phylo), data = data1)
+
+    method_AC_bird_res <- get_est(method_AC_bird)
+    
+    # Fit model with new sampling variance using reduced data set
+    method_AC_bird_2 <- rma.mv(lnrr_laj ~ 1, V = v_lnrr_laj_1B,
+                           random=list(~1|Group, ~1|Year, ~1|Focal_insect, ~1|obs),
+                           R = list(Focal_insect = phylo2), data = data2)
+
+    method_AC_bird_res_2 <- get_est(method_AC_bird_2)
+    
+```
+
+### Multiplicative Method
+
+The Multiplicative Method involves a weighted regression approach. This can be implemented as follows:
+
+```{r bird_2, echo=TRUE, include=TRUE, message=FALSE, warning=FALSE, class.source='klippy'}
+
+     ########## Multiplicative Method (MM) ##########
+
+                 V_es <- diag(data1$v_lnrr_laj_1B)
+      row.names(V_es) <- data1$obs
+           data1$obs2 <- rownames(V_es)
+
+    method_MM_bird <-rma.mv(lnrr_laj ~ 1, V = 0, 
+                          random=list(~1|Group, ~1|Year,
+                                      ~1|Focal_insect, ~1|obs, ~1|obs2),
+                        data=data1, R=list(obs2=V_es, Focal_insect = phylo),
+                        Rscale=F)
+    
+    method_MM_bird_res <- get_est(method_MM_bird)
+    
+    
+    # Take the same approach with new sampling variance using reduced data set
+    
+                 V_es_2 <- diag(data2$v_lnrr_laj_1B)
+      row.names(V_es_2) <- data2$obs
+             data2$obs2 <- rownames(V_es_2)
+
+    method_MM_bird_2 <-rma.mv(lnrr_laj ~ 1, V = 0, 
+                          random=list(~1|Group, ~1|Year,
+                                      ~1|Focal_insect, ~1|obs, ~1|obs2),
+                        data=data2, R=list(obs2=V_es, Focal_insect = phylo2),
+                        Rscale=F)
+    
+    method_MM_bird_res_2 <- get_est(method_MM_bird_2)
+    
+```
+
+### Hybrid Method
+
+The Hybrid Method is a combined approach using Equation 5 as the sampling variance when we have the full data; otherwise using a weighted regression approach.
+
+```{r bird_3, echo=TRUE, include=TRUE, message=FALSE, warning=FALSE, class.source='klippy'}
+
+ ########## Hybrid Method (HM)  ##########
+
+    # Find where missing SD's are in the data
+      missing_dat <- which(is.na(data1$Control_standard_deviation) & is.na(data1$Experimental_standard_deviation))
+
+    # Set the effect sizes not missing data to zero in the V_es matrix
+                        V_es2 <- diag(data1$v_lnrr_laj_1B)
+    diag(V_es2)[-missing_dat] <- 0
+             row.names(V_es2) <- data1$obs
+                   data1$obs2 <- rownames(V_es2)
+
+    # Set the v_lnrr_laj to 0
+                 data1$v_lnrr_laj_m3 <- data1$v_lnrr_laj
+    data1$v_lnrr_laj_m3[missing_dat] <- 0
+
+    method_HM_bird <-rma.mv(lnrr_laj ~ 1, V = v_lnrr_laj_m3, 
+                          random = list(~1|Group, ~1|Year, ~1|Focal_insect, ~1|obs, ~1|obs2),
+                            data = data1, R = list(obs2=V_es2, Focal_insect = phylo), Rscale=F)
+    method_HM_bird_res <- get_est(method_HM_bird)
+    
+    
+# Take the same approach with new sampling variance using reduced data set
+    
+     # Find where missing SD's are in the data
+      missing_dat_2 <- which(is.na(data2$Control_standard_deviation) & is.na(data2$Experimental_standard_deviation))
+
+    # Set the effect sizes not missing data to zero in the V_es matrix
+                        V_es2_2 <- diag(data2$v_lnrr_laj_1B)
+    diag(V_es2_2)[-missing_dat_2] <- 0
+             row.names(V_es2_2) <- data2$obs
+                   data2$obs2 <- rownames(V_es2_2)
+
+    # Set the v_lnrr_laj to 0
+                 data2$v_lnrr_laj_m3 <- data2$v_lnrr_laj
+    data2$v_lnrr_laj_m3[missing_dat_2] <- 0
+
+    method_HM_bird_2 <-rma.mv(lnrr_laj ~ 1, V = v_lnrr_laj_m3, 
+                          random = list(~1|Group, ~1|Year, ~1|Focal_insect, ~1|obs, ~1|obs2),
+                            data = data2, R = list(obs2=V_es2, Focal_insect = phylo2), Rscale=F)
+    method_HM_bird_res_2 <- get_est(method_HM_bird_2)
+```
+
+### Comparing results
+
+We can compare the results of all the methods together for both the full data (Table \@ref(tab:birdResultsFull)) and the reduced dataset that excludes effect sizes failing Geary's test (Table \@ref(tab:birdResults)):
+
+```{r birdResultsFull, tab.cap = "Results from re-analysis of Bird et al. 2019 using the full dataset", echo=FALSE, include=TRUE, message=FALSE, warning=FALSE, class.source='klippy'}
+ results <- rbind(method_MC_bird_res, method_AC_bird_res, method_MM_bird_res, method_HM_bird_res)
+    results$Method <- c("Missing-cases", "All-cases", "Multiplicative", "Hybrid")
+    
+    results <- results %>% select(Method, Est., SE, "95% LCI", "95% UCI")
+    flextable::flextable(results) %>% flextable::width(j = c(1, 5), c(0.9, 0.8))
+```
+
+```{r birdResults, tab.cap = "Results from re-analysis of Bird et al. 2019 using the reduced dataset where effects failing Geary's test are excluded.", echo=FALSE, include=TRUE, message=FALSE, warning=FALSE, class.source='klippy'}
+ results2 <- rbind(method_MC_bird_res_2, method_AC_bird_res_2, method_MM_bird_res_2, method_HM_bird_res_2)
+    results2$Method <- c("Missing-cases", "All-cases", "Multiplicative", "Hybrid")
+    
+    results2 <- results2 %>% select(Method, Est., SE, "95% LCI", "95% UCI")
+    flextable::flextable(results2) %>% flextable::width(j = c(1, 5), c(0.9, 0.8))
+```
+
+# **Appendix S4**: Worked Example 2 - Dealing with missing SD data when assessing strategic-rest grazing (SRG) regimes on both ungrazed and constantly grazed (CG) systems
+
+### Introduction
+
+Our second example is from @mcdonald2019 which demonstrates nicely a real dataset with missing standard deviation data as a result of it not being reported within papers. @mcdonald2019 studied the effects of strategic-rest grazing (SRG) regimes on both ungrazed and constantly grazed (CG) systems. They looked at a number of different ecological outcomes. Here, we focus on the effects of SRG vs CG on biomass; this dataset contains 173 effect sizes from 67 studies. In their original analysis @mcdonald2019 find that the biomass of CG systems is significantly reduced relative to that SRG, but do not report the total heterogeneity. The dataset contains two dimensions of non-independence that are common to eco-evolutionary meta-analyses; 1) multiple effect sizes per study and 2) several effect sizes within the same study are computed as relative to the same control group [sometimes termed 'stochastic dependency'; @Noble2017; @GleserOlkin2009]. For now, we will ignore point 2 for ease of presentation.
+
+### Setting up
+
+First, download all files from  OSF: https://osf.io/h9x6w/. Then, load libraries and data.
+
+```{r echo = TRUE, eval = TRUE, results='hide', class.source='klippy'}
+#install.packages("pacman")
+pacman::p_load(tidyverse, metafor, here, ape, phytools)
+
+# Useful functions for calculating CV^2 within and between studies. This file can be downloaded from  OSF: https://osf.io/h9x6w/
+source("./func.R")
+
+# Download the data file from OSF
+
+# Load the data file and tree file
+data2 <- read.csv("./example2.csv")
+data2$ES_ID<-as.factor(seq(1, nrow(data2), 1))
+```
+
+Of the `r dim(data2)[1]` effect sizes in the biomass dataset, `r (sum(is.na(data2$CSD)) / dim(data2)[1])*100`% have missing SD data (Figure \@ref(fig:fig2)). Where missing, SDs were missing for both the CG (`CSD` in data) and SRG (`TSD` in data) treatment groups in the effect size (Figure \@ref(fig:fig2)). In their original analyses @mcdonald2019 handle these missing data by calculating the average CV from all studies without missing data. They then use the reported mean value for studies with missing SDs coupled with the average CV to impute the missing SD value. This method is similar to single imputation of missing SDs, by predicting their value from a mean-SD linear regression. Non-independence was handled by @mcdonald2019 using MLMA, which included a variance-covariance matrix to account for stochastic dependency.
+
+```{r fig2, fig.cap = "Missing data in the McDonald et al. (2019) dataset.", echo=FALSE, eval = TRUE, include=TRUE, message=FALSE, warning=FALSE}
+na.plot2 <- data2 %>%
+  mutate(id = row_number()) %>%
+  gather(-id, key = "key", value = "val") %>%
+  mutate(isna = is.na(val)) %>%
+  ggplot(aes(key, id, fill = isna)) +
+    geom_raster(alpha=0.8) +
+    scale_fill_manual(name = "",
+        values = c('steelblue', 'tomato3'),
+        labels = c("Present", "Missing")) +
+    labs(x = "Variable",
+           y = "Row Number") +
+    coord_flip()
+
+na.plot2
+```
+
+### Missing-cases Method
+
+Again, we need to calculate log response ratios and their associated sampling variances differently depending on whether we have an observation with a missing standard deviation (SD) or not. First, we need to calculate $CV$, which will make it easy to set up the data.
+
+```{r cvavg2, echo=TRUE, include=TRUE, message=FALSE, warning=FALSE, class.source='klippy'}
+# Calculate CV  
+      data2 <- data2 %>% 
+                mutate(     cv_Control = na_if(CSD / CM, Inf),
+                       cv_Experimental = na_if(TSD / TM, Inf))
+
+# Calculate the average between study CV, which will replace missing values.
+    data2 <- cv_avg(x = CM, sd = CSD,
+                            n = CN, group = Study, label = "1",
+                             data = data2)
+    data2 <- cv_avg(x = TM, sd = TSD,
+                            n = TN, group = Study,
+                            label = "2", data = data2)
+    
+     # Use weighted mean CV in replacement for where CV's are missing. Otherwise, calculate CV^2 of data that is known.
+    data2 <- data2 %>%
+              mutate(cv2_cont_new = if_else(is.na(cv_Control),      b_CV2_1, cv_Control^2),
+                     cv2_expt_new = if_else(is.na(cv_Experimental), b_CV2_2, cv_Experimental^2))
+
+```
+
+According to Table 1 (in the main MS), we can use equation 4 or 6 for the point estimate calculation and equation 5 for the sampling variance when we have a known SD and equation 7 when we have an unknown SD. We can do that as follows:
+
+```{r lnRR_McDon1A, echo=TRUE, include=TRUE, message=FALSE, warning=FALSE, results='hide', class.source='klippy'}
+   
+    # Now calculate new yi and vi, called lnrr_laj & v_lnrr_laj, respectively. This uses either the between individual CV^2 when missing or normal CV^2 when not missing.
+    data2 <- data2 %>%
+              mutate(lnrr_laj = lnrr_laj(m1 = TM, m2 = CM,
+                                         cv1_2 = cv2_expt_new, cv2_2 = cv2_cont_new,
+                                         n1= TN, n2 = CN),
+                   v_lnrr_1A = v_lnrr_laj( cv1_2 = cv2_expt_new, n1= TN,
+                                           cv2_2 = cv2_cont_new, n2 = CN))
+```
+
+```{r mcdon_1A, echo = TRUE, eval = TRUE, class.source='klippy'}
+# Missing-cases Method: MLMA of missing SD effect sizes using pooled CV2
+MLMA_MC<-rma.mv(yi = lnrr_laj, V = v_lnrr_1A, random=list(~1|Study, ~1|ES_ID), data=data2)
+MLMA_MC_res <- get_est(MLMA_MC)
+```
+
+### All-cases Method
+
+We will now calculate a new sampling variance using Equation 7, that makes use of the weighted between study $CV$ for all observed effect sizes.
+
+```{r mcdon_1B, echo = TRUE, eval = TRUE, class.source='klippy'}
+
+ # Now calculate new v_lnrr_laj_1B using between study CV^2 for all observations.
+    data2 <- data2 %>%
+              mutate(v_lnrr_laj_1B = v_lnrr_laj(cv1_2 = b_CV2_2, n1 = TN,
+                                                cv2_2 = b_CV2_1, n2 = CN))
+
+# All-cases Method: MLMA of all effect sizes using pooled CV2
+MLMA_AC<-rma.mv(yi = lnrr_laj, V = v_lnrr_laj_1B, random=list(~1|Study, ~1|ES_ID), data=data2)
+MLMA_AC_res <- get_est(MLMA_AC)
+```
+
+### Multiplicative Method
+
+Now use the weighted regression approach with Equation 7 as $v_{i}$.
+
+```{r mcdon_2, echo = TRUE, eval = TRUE, class.source='klippy'}
+# Multiplicative Method: weighted regression of all effect sizes using pooled CV2 
+            Vf <- diag(data2$v_lnrr_laj_1B)
+ row.names(Vf) <- seq(1, length(data2$v_lnrr_laj_1B), 1)
+	colnames(Vf) <- seq(1, length(data2$v_lnrr_laj_1B), 1)
+  data2$ES_ID2 <- rownames(Vf)
+
+MLMA_MM<-rma.mv(yi = lnrr_laj, V = 0, random=list(~1|Study, ~1|ES_ID, ~1|ES_ID2), 
+              data=data2, R=list(ES_ID2=Vf), Rscale=F)
+MLMA_MM_res <- get_est(MLMA_MM)
+```
+
+### Hybrid Method
+
+Now use the weighted regression approach with Equation 7 as $v_{i}$, but equation 5 for the sampling variance when SD is known.
+
+```{r mcdon_3, echo = TRUE, eval = TRUE,warning=FALSE,class.source='klippy'}
+# Hybrid Method: weighted regression of all effect sizes using pooled CV2 
+
+missing<-which(is.na(data2$CSD) == T)
+diag(Vf)[-missing]<-0
+
+ Vf <- diag(data2$v_lnrr_laj_1B)
+ row.names(Vf) <- seq(1, length(data2$v_lnrr_laj_1B), 1)
+	colnames(Vf) <- seq(1, length(data2$v_lnrr_laj_1B), 1)
+  data2$ES_ID2 <- rownames(Vf)
+
+data2$vi_3<-data2$v_lnrr_1A
+data2$vi_3[missing]<-0
+
+MLMA_HM<-rma.mv(yi = lnrr_laj, V = vi_3, random=list(~1|Study, ~1|ES_ID, ~1|ES_ID2), 
+              data=data2, R=list(ES_ID2=Vf), Rscale=F)
+MLMA_HM_res <- get_est(MLMA_HM)
+```
+
+### Comparing results
+
+In Table \@ref(tab:mcDonResults) we present the results of re-analysis of the biomass data from @mcdonald2019, again using MLMA, but with the four different methods to handles missing SDs. For reference we also include the results of a complete cases analysis where studies with missing SDs have been excluded. The effect sizes for the different methods are all very similar, although the CI for the complete cases analysis is wider than for those that include studies with missing SDs. Method 1B estimated slightly lower heterogeneity than the other methods.
+
+```{r mcDonResults, tab.cap = "Results from re-analysis of McDonald et al. 2019", echo=FALSE, include=TRUE, message=FALSE, warning=FALSE, class.source='klippy'}
+ results2 <- rbind(MLMA_MC_res, MLMA_AC_res, MLMA_MM_res, MLMA_HM_res)
+    results2$Method <- c("Missing-cases", "All-cases", "Multiplicative", "Hybrid")
+    
+    results2 <- results2 %>% select(Method, Est., SE, "95% LCI", "95% UCI")
+    flextable::flextable(results2) %>% flextable::width(j = c(1, 5), c(0.9, 0.8))
+```
+
+### Robust Variance Estimators
+
+In Appendix S1 we mention that robust variance estimators can also be used to control for dependency among effect sizes. We'll demonstrate how missing data methods can be combined with RVE's when using worked example 2 for the Missing-cases method. Example 2 contains a few effect sizes that share a common control group. This creates dependency among their sampling variances that we should control for in our models. However, other sources of non-independence may also be present that we are unaware of (e.g., shared traits; See @Noble2017). Cluster-robust methods are known to do an excellent job at correcting standard errors when such dependency exists [see @Song2021; @Nakagawa2021; @Hedges2010; @Tipton2013].
+
+```{r robust, echo = TRUE, eval = TRUE,warning=FALSE,class.source='klippy'}
+
+# We ignore the few common-control comparisons we can calculate an adjusted sampling variance matrix to account for shared-sampling variance between effect sizes
+                V <- metafor::vcalc(vi = v_lnrr_1A, cluster = Common.control, rho = 0.5, data = data2)
+
+# Using our V matrix, we can re-fit our multi-level meta-analytic model
+       MLMA_MC_adj <- rma.mv(yi = lnrr_laj, V = V, random=list(~1|Study, ~1|ES_ID), data=data2)
+       
+# Now we can apply cluster-robust inferences. We have little dependency in these data so we don't expect many changes
+    MLMA_MC_robust <- robust(MLMA_MC_adj, cluster = data2$Study, adjust = TRUE)
+    MLMA_MC_robust
+```
+
+We can see that, in this situation, our results are robust to shared control and other within study dependencies.
+
+# **References**
+
+<div id="refs"></div>
+
+<br>
+
+# **Session Information**
+
+```{r echo = FALSE, eval = TRUE}
+sessionInfo() %>% pander::pander()
+```
